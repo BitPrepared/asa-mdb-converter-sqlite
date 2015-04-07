@@ -6,13 +6,18 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 
 import com.healthmarketscience.jackcess.Column;
 import com.healthmarketscience.jackcess.Database;
 import com.healthmarketscience.jackcess.Index;
+import com.healthmarketscience.jackcess.Row;
 import com.healthmarketscience.jackcess.Table;
 
 /**
@@ -106,6 +111,9 @@ public class AccessExporter {
             
             stmtBuilder.append(escapeIdentifier(column.getName()));
             stmtBuilder.append(" ");
+            
+            System.out.println(" tabella : "+table.getName()+" tipo: "+column.getType());
+            
             switch (column.getType()) {
                 /* Blob */
                 case BINARY:
@@ -121,9 +129,9 @@ public class AccessExporter {
                     stmtBuilder.append("INTEGER");
                     break;
               
-                /* Timestamp */
+                /* Timestamp -> https://www.sqlite.org/datatype3.html SQLite does not have a storage class set aside for storing dates and/or times */
                 case SHORT_DATE_TIME:
-                    stmtBuilder.append("DATETIME");
+                    stmtBuilder.append("TEXT");
                     break;
                
                 /* Floating point */
@@ -210,7 +218,7 @@ public class AccessExporter {
         final PreparedStatement prep = jdbc.prepareStatement(stmtBuilder.toString());
         
         /* Kick off the insert spree */
-        for (Map<String, Object> row : table) {
+        for (Row row : table) {
             /* Bind all the column values. We let JDBC do type conversion -- is this correct?. */
             for (int i = 0; i < columnCount; i++) {
                 final Column column = columns.get(i);
@@ -242,6 +250,15 @@ public class AccessExporter {
                             
                         /* Store it */
                         prep.setInt(i + 1, intVal);
+                        break;
+                    case SHORT_DATE_TIME:
+                    	Date val = row.getDate(column.getName());
+                    	
+                    	TimeZone tz = TimeZone.getTimeZone("UTC");
+                        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'");
+                        df.setTimeZone(tz);
+                        String dateAsISO = df.format(val);
+                    	prep.setObject(i + 1, dateAsISO);
                         break;
                     default:
                         prep.setObject(i + 1, row.get(column.getName()));
